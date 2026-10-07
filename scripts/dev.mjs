@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const python = spawn(
   process.env.PYTHON || "python",
-  ["-u", "python/server.py", "--port", "0"],
+  ["-u", "python/server.py", "--host", "127.0.0.1", "--port", "0"],
   {
     cwd: root,
     stdio: ["ignore", "pipe", "inherit"],

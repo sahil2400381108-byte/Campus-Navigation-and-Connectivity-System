@@ -17,9 +17,12 @@ export const graphTypes = [
   },
 ];
 
+// Empty locally: Vite proxies /api. Set this to the Render origin on Vercel.
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "");
+
 export async function runGraphOperation(type, action, parameters = {}) {
   try {
-    const response = await fetch("/api/graph", {
+    const response = await fetch(`${apiBaseUrl}/api/graph`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type, action, ...parameters }),
@@ -29,7 +32,9 @@ export async function runGraphOperation(type, action, parameters = {}) {
     return await response.json();
   } catch {
     throw new Error(
-      "Cannot reach the local Python program. Restart the app with npm run dev and try again.",
+      apiBaseUrl
+        ? "Cannot reach the Python server. Check the deployed API URL and try again."
+        : "Cannot reach the local Python program. Restart the app with npm run dev and try again.",
     );
   }
 }

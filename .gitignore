@@ -7,3 +7,7 @@ __pycache__/
 *.pyc
 test-results/
 playwright-report/
+.venv/
+.env
+.env.local
+.env.*.local

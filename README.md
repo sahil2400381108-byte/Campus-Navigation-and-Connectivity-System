@@ -4,9 +4,10 @@ A complete interactive campus graph website with a React/Vite interface and **Py
 
 ## Run the website
 
-Requirements: Node.js 22.12+ and Python 3.10+ on PATH. No third-party Python packages are needed.
+Requirements: Node.js 22.12+ and Python 3.10+ on PATH.
 
 ```bash
+python -m pip install -r python/requirements.txt
 npm install
 npm run dev
 ```
@@ -34,7 +35,7 @@ On smaller screens, **View animated graph** jumps from the traversal panel to th
 
 ## Python code for your project demonstration
 
-All graph data, vertex/edge creation, representations, BFS, DFS, and connectivity are implemented in `python/campus_graph.py`. React only renders the Python results. `python/server.py` uses Python's standard library to connect the website to those operations over localhost. There are no external APIs, databases, accounts, or extra graph algorithms.
+All graph data, vertex/edge creation, representations, BFS, DFS, and connectivity are implemented in `python/campus_graph.py`. React only renders the Python results. `python/server.py` is a Flask communication layer with CORS enabled, usable both locally and through Gunicorn on Render. The DSA module itself requires only Python's standard library. There are no external data APIs, databases, accounts, or extra graph algorithms.
 
 You can optionally run `python/demo.py` in an IDE, or:
 
@@ -49,9 +50,11 @@ To change the campus, edit `LOCATIONS` and `EDGES` in `python/campus_graph.py`, 
 ```text
 python/
   campus_graph.py       # Graph class, campus data, BFS, DFS, connectivity
-  server.py             # Small local bridge to the website
+  server.py             # Flask API, CORS, and local startup
+  requirements.txt      # Flask, flask-cors, gunicorn
   demo.py               # Optional IDE/terminal demonstration
   test_campus_graph.py  # DSA correctness tests
+  test_server.py        # API compatibility, CORS, health, and startup tests
 scripts/
   dev.mjs               # Starts and stops Python + Vite together
 src/
@@ -77,6 +80,58 @@ npm run preview
 Browser tests use installed Google Chrome by default. If Chrome is unavailable, install Playwright Chromium using `npx playwright install chromium`, then set `PLAYWRIGHT_CHANNEL=chromium` before running tests (PowerShell: `$env:PLAYWRIGHT_CHANNEL='chromium'`). Tests cover the real Python-backed interface, representations, both traversal orders, directionality, distances, connectivity, connection failure recovery, and mobile layout.
 
 `npm run preview` starts Python and serves the production build. Because the algorithms run in Python, the website needs its local Python process; the `dist` folder alone cannot execute graph operations.
+
+## Flask API and local server
+
+From the project root, install the backend dependencies and start the server:
+
+```bash
+python -m pip install -r python/requirements.txt
+python python/server.py
+```
+
+The default port is **8765**. The server reads the `PORT` environment variable; `--port` overrides it. You can also pass `--host`. `npm run dev` still starts Flask and Vite together, using an automatically assigned local Flask port. Direct Python startup uses Werkzeug's development server; Render uses Gunicorn.
+
+| Method | Route | Response / purpose |
+|---|---|---|
+| GET | `/health` | `{"status":"ok"}`; Render health check |
+| GET | `/api/health` | `{"status":"ok"}`; existing health route |
+| POST | `/api/graph` | Existing graph operations, selected by JSON `action` |
+| OPTIONS | `/api/graph` | Automatic CORS preflight for cross-origin POST requests |
+
+Flask also supplies automatic OPTIONS responses and HEAD support on the two GET routes. CORS accepts browser origins without requiring credentials.
+
+All graph requests use the same endpoint and retain their existing JSON structures:
+
+| JSON request | Returned fields |
+|---|---|
+| `{"type":"undirected","action":"graph"}` | `directed`, `vertices`, `edges`, `adjacencyList`, `adjacencyMatrix` |
+| `{"type":"undirected","action":"bfs","start":"gate"}` | `order`, `parents` |
+| `{"type":"undirected","action":"dfs","start":"gate"}` | `order` |
+| `{"type":"undirected","action":"connectivity","source":"gate","destination":"library"}` | `connected`, `path`, `order` |
+
+The `type` can be `undirected`, `directed`, or `weighted`. Validation errors retain HTTP 400 and the `{"error":"message"}` envelope; requests are limited to 4096 bytes. Campus data and calculation code are unchanged.
+
+## Deploy the backend to Render
+
+Create a **Python Web Service** with these settings:
+
+- **Root directory:** `python`
+- **Build command:** `pip install -r requirements.txt`
+- **Start command:** `gunicorn server:app --bind 0.0.0.0:$PORT`
+- **Health check path:** `/health`
+
+With `python` as the service root, `gunicorn server:app` imports the Flask `app` from `server.py`. The explicit bind uses Render's assigned port and listens on all interfaces. Gunicorn runs on Linux (Render); use the Python startup command above on Windows. See [Render's Flask deployment guide](https://render.com/docs/deploy-flask) and [Flask's Gunicorn guide](https://flask.palletsprojects.com/en/stable/deploying/gunicorn/).
+
+## Connect the Vercel frontend to Render
+
+After Render provides your backend URL, set this environment variable in the Vercel frontend project:
+
+```text
+VITE_API_BASE_URL=https://your-campus-backend.onrender.com
+```
+
+Use the backend origin, without `/api/graph`. **Redeploy the Vercel frontend** after setting it; Vite reads this variable at build time. Requests will then go directly to the Render Flask API, which permits CORS. Leave it empty locally to retain the Vite proxy. `.env.example` documents the setting; no deployed URL is hardcoded.
 
 ## DSA complexity
 
